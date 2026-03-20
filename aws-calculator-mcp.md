@@ -588,3 +588,93 @@ The calculator supports three export formats:
 - **Base path**: `b2b2e861-58f8-4b04-bb59-818f2d550ab5/[AWSMarketingPricingCalculatorPlatformFrontEndUI-1.0]pkg.configfarm.frontend_ui_assets/frontend_ui_assets`
 - **State management**: Redux (estimate stored as `root-estimate-v1` in localStorage)
 - **Math library**: Uses `BigNumber.js` for precise decimal arithmetic
+
+---
+
+## Existing Implementations & Official APIs
+
+### Existing MCP Server: Musheer360/aws-calculator-mcp
+
+**GitHub**: https://github.com/Musheer360/aws-calculator-mcp
+
+An existing open-source MCP server that has already reverse-engineered the calculator.aws REST APIs. Uses the same unauthenticated CloudFront endpoints documented above. This is the most complete public implementation.
+
+### Official AWS Pricing Calculator API (Authenticated)
+
+AWS now offers an **official, authenticated API** as part of Billing and Cost Management with 38 operations:
+
+**Endpoint**: `bcm-pricing-calculator.{region}.amazonaws.com`
+
+**Key Operations**:
+- **Bill Estimates**: `CreateBillEstimate`, `GetBillEstimate`, `ListBillEstimates`, `ListBillEstimateLineItems`, `ListBillEstimateCommitments`
+- **Bill Scenarios**: `CreateBillScenario`, `GetBillScenario`, `ListBillScenarios`, plus batch operations for commitment/usage modifications
+- **Workload Estimates**: `CreateWorkloadEstimate`, `GetWorkloadEstimate`, `ListWorkloadEstimates`, plus batch operations for usage
+- **Preferences**: `GetPreferences`, `UpdatePreferences`
+
+This API supports modeling Savings Plans, Reserved Instances, and benefit-sharing preferences. Requires IAM authentication.
+
+**Docs**: https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_Operations_AWS_Billing_and_Cost_Management_Pricing_Calculator.html
+
+### AWS Price List API (Raw Pricing Data)
+
+```
+GET https://api.pricing.us-east-1.amazonaws.com  (requires IAM auth)
+GET https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/index.json  (public, no auth)
+```
+
+- **Price List Query API** — Programmatic queries by product attributes at SKU level (requires IAM)
+- **Price List Bulk API** — Download full price list files in JSON/CSV by service and region (public)
+
+### Other Tools
+- **[awslabs/mcp PR #1247](https://github.com/awslabs/mcp/pull/1247)** — Official AWS MCP adding Workload Estimate support
+- **[lyft/awspricing](https://github.com/lyft/awspricing)** — Python library wrapping the Price List Query API
+- **[concurrencylabs/aws-pricing-tools](https://github.com/concurrencylabs/aws-pricing-tools)** — Lambda-based pricing tools
+
+---
+
+## Save Estimate Request Body Format
+
+The POST to `https://dnd5zrqcec4or.cloudfront.net/Prod/v2/saveAs` accepts:
+
+```json
+{
+  "name": "My Estimate",
+  "services": {
+    "<serviceId>": {
+      "version": "0.0.1",
+      "serviceCode": "amazonS3",
+      "estimateFor": "amazonS3",
+      "region": "us-east-1",
+      "description": "S3 estimate",
+      "calculationComponents": {
+        "s3Services_generated_0": 100,
+        "s3Services_generated_1": 10000
+      },
+      "serviceCost": { "monthly": 2.35, "upfront": 0 },
+      "serviceName": "Amazon S3",
+      "regionName": "US East (N. Virginia)",
+      "configSummary": "100 GB Standard Storage",
+      "templateId": "template_0"
+    }
+  },
+  "groups": {
+    "<groupId>": {
+      "name": "My Group",
+      "services": ["<serviceId>"]
+    }
+  },
+  "groupSubtotal": { "monthly": 2.35, "upfront": 0 },
+  "totalCost": { "monthly": 2.35, "upfront": 0 },
+  "support": {},
+  "metaData": {
+    "locale": "en_US",
+    "currency": "USD",
+    "createdOn": "2026-03-20T00:00:00Z",
+    "source": "calculator.aws"
+  }
+}
+```
+
+**Response**: `{ "statusCode": 201, "body": "{\"savedKey\": \"abc123...\"}" }`
+
+The `savedKey` creates a shareable URL: `https://calculator.aws/estimate?id={savedKey}` (links remain active up to 3 years)
