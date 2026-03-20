@@ -596,8 +596,47 @@ The calculator supports three export formats:
 ### Existing MCP Server: Musheer360/aws-calculator-mcp
 
 **GitHub**: https://github.com/Musheer360/aws-calculator-mcp
+**License**: MIT
 
-An existing open-source MCP server that has already reverse-engineered the calculator.aws REST APIs. Uses the same unauthenticated CloudFront endpoints documented above. This is the most complete public implementation.
+An existing open-source MCP server (TypeScript) that has already reverse-engineered the calculator.aws REST APIs. Uses the same unauthenticated CloudFront endpoints documented above. This is the most complete public implementation.
+
+**5 MCP Tools Exposed**:
+
+| Tool | Description |
+|------|-------------|
+| `search_services` | Search 436+ AWS services by keyword, returns serviceCodes |
+| `get_service_schema` | Get full input schema for a service (form fields, dropdowns, validations) |
+| `configure_service` | Configure a service with inputs, fetches real-time pricing, calculates costs |
+| `create_estimate` | Build multi-service estimate, save via API, return shareable calculator.aws URL |
+| `load_estimate` | Load existing estimate by ID or URL |
+
+**`create_estimate` input format** (what the MCP tool accepts):
+```json
+{
+  "name": "My Estimate",
+  "services": [
+    {
+      "serviceCode": "eC2Next",
+      "region": "us-east-1",
+      "serviceName": "Amazon EC2",
+      "monthlyCost": 123.45,
+      "upfrontCost": 0,
+      "configSummary": "t3.medium, Linux, On-Demand",
+      "calculationComponents": { "<fieldId>": "<value>" },
+      "templateId": "quickEstimate",
+      "group": "Web Tier"
+    }
+  ]
+}
+```
+
+**Key implementation details from the source**:
+- Uses `configure_service` to fetch real-time pricing and auto-calculate costs
+- `calculationComponents` keys are field IDs from `get_service_schema` (e.g., `s3Services_generated_0`)
+- For dropdown fields, use the `value` property (not `label`) from options
+- For frequency/fileSize fields, provide `{ value: number, unit: "unitString" }`
+- Services can be organized into named groups
+- Costs are auto-calculated if `monthlyCost` is 0
 
 ### Official AWS Pricing Calculator API (Authenticated)
 
@@ -677,4 +716,28 @@ The POST to `https://dnd5zrqcec4or.cloudfront.net/Prod/v2/saveAs` accepts:
 
 **Response**: `{ "statusCode": 201, "body": "{\"savedKey\": \"abc123...\"}" }`
 
-The `savedKey` creates a shareable URL: `https://calculator.aws/estimate?id={savedKey}` (links remain active up to 3 years)
+The `savedKey` creates a shareable URL: `https://calculator.aws/#/estimate?id={savedKey}`
+
+**Notes**:
+- Uses hash routing (`#/estimate`), not path routing
+- Links expire after **1 year** (for estimates created after May 31, 2023)
+- Each save generates a **new** ID; updates don't modify the original link
+- No AWS account required to view shared estimates
+
+---
+
+## Two Separate AWS Pricing Calculator Systems
+
+AWS has **two completely different** pricing calculator systems:
+
+| | Public Calculator | In-Console BCM API |
+|---|---|---|
+| **URL** | `calculator.aws` | AWS Console / SDK |
+| **Auth** | None required | IAM authentication |
+| **API** | Undocumented CloudFront endpoints | Official `bcm-pricing-calculator` API |
+| **SDK** | None | `@aws-sdk/client-bcm-pricing-calculator` |
+| **Region** | N/A | `us-east-1` only |
+| **Cost** | Free | Workload estimates free; Bill estimates $2 each after 5/month |
+| **CLI** | N/A | `aws bcm-pricing-calculator create-workload-estimate` |
+
+For building an MCP, the **public calculator** (undocumented) is more accessible since it requires no auth. The **BCM API** is the officially supported path but requires AWS credentials.
